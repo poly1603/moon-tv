@@ -311,8 +311,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 将更新后的配置写入数据库
-    if (storage && typeof (storage as any).setAdminConfig === 'function') {
+    // 将更新后的配置写入数据库 (使用新的分离存储)
+    if (storage && typeof (storage as any).setAdminConfigSeparated === 'function') {
+      await (storage as any).setAdminConfigSeparated(adminConfig);
+    } else if (storage && typeof (storage as any).setAdminConfig === 'function') {
+      // 回退到旧的存储方式
       await (storage as any).setAdminConfig(adminConfig);
     }
 

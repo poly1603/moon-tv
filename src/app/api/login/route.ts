@@ -69,6 +69,11 @@ async function generateAuthCookie(
 
 export async function POST(req: NextRequest) {
   try {
+    // 调试日志
+    console.log('[Login Debug] STORAGE_TYPE:', STORAGE_TYPE);
+    console.log('[Login Debug] USERNAME env:', process.env.USERNAME);
+    console.log('[Login Debug] PASSWORD env exists:', !!process.env.PASSWORD);
+
     // 本地 / localStorage 模式——仅校验固定密码
     if (STORAGE_TYPE === 'localstorage') {
       const envPassword = (process.env.PASSWORD || '').trim();

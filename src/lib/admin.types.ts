@@ -1,4 +1,5 @@
 export interface AdminConfig {
+  ConfigFile?: string; // 原始配置文件内容 (JSON 字符串)
   SiteConfig: {
     SiteName: string;
     Announcement: string;

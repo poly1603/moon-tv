@@ -183,8 +183,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '未知操作' }, { status: 400 });
     }
 
-    // 持久化到存储
-    if (storage && typeof (storage as any).setAdminConfig === 'function') {
+    // 持久化到存储 (使用新的分离存储)
+    if (storage && typeof (storage as any).setCustomCategories === 'function') {
+      await (storage as any).setCustomCategories(adminConfig.CustomCategories);
+    } else if (storage && typeof (storage as any).setAdminConfig === 'function') {
       await (storage as any).setAdminConfig(adminConfig);
     }
 

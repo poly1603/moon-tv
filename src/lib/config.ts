@@ -73,10 +73,15 @@ async function initConfig() {
     const storage = getStorage();
 
     try {
-      // 尝试从数据库获取管理员配置
+      // 先尝试迁移旧数据
+      if (storage && typeof (storage as any).migrateFromLegacy === 'function') {
+        await (storage as any).migrateFromLegacy();
+      }
+
+      // 从分离结构读取配置
       let adminConfig: AdminConfig | null = null;
-      if (storage && typeof (storage as any).getAdminConfig === 'function') {
-        adminConfig = await (storage as any).getAdminConfig();
+      if (storage && typeof (storage as any).getAdminConfigFromSeparated === 'function') {
+        adminConfig = await (storage as any).getAdminConfigFromSeparated();
       }
 
       // 获取所有用户名，用于补全 Users
@@ -226,9 +231,9 @@ async function initConfig() {
         };
       }
 
-      // 写回数据库（更新/创建）
-      if (storage && typeof (storage as any).setAdminConfig === 'function') {
-        await (storage as any).setAdminConfig(adminConfig);
+      // 写回数据库（使用新的分离存储）
+      if (storage && typeof (storage as any).setAdminConfigSeparated === 'function') {
+        await (storage as any).setAdminConfigSeparated(adminConfig);
       }
 
       // 更新缓存
@@ -282,31 +287,30 @@ export async function getConfig(): Promise<AdminConfig> {
     await initConfig();
     return cachedConfig;
   }
-  // 非 docker 环境且 DB 存储，直接读 db 配置
+  
+  // 非 docker 环境且 DB 存储
   const storage = getStorage();
-  let adminConfig: AdminConfig | null = null;
-  if (storage && typeof (storage as any).getAdminConfig === 'function') {
-    adminConfig = await (storage as any).getAdminConfig();
+  
+  // 先尝试迁移旧数据
+  if (storage && typeof (storage as any).migrateFromLegacy === 'function') {
+    try {
+      await (storage as any).migrateFromLegacy();
+    } catch (e) {
+      console.error('数据迁移失败:', e);
+    }
   }
+  
+  // 从分离结构读取配置
+  let adminConfig: AdminConfig | null = null;
+  if (storage && typeof (storage as any).getAdminConfigFromSeparated === 'function') {
+    adminConfig = await (storage as any).getAdminConfigFromSeparated();
+  }
+  
   if (adminConfig) {
     // 确保 CustomCategories 被初始化
     if (!adminConfig.CustomCategories) {
       adminConfig.CustomCategories = [];
     }
-
-    // 合并一些环境变量配置
-    adminConfig.SiteConfig.SiteName = process.env.SITE_NAME || 'MoonTV';
-    adminConfig.SiteConfig.Announcement =
-      process.env.ANNOUNCEMENT ||
-      '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。';
-    adminConfig.UserConfig.AllowRegister =
-      process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true';
-    adminConfig.SiteConfig.ImageProxy =
-      process.env.NEXT_PUBLIC_IMAGE_PROXY || '';
-    adminConfig.SiteConfig.DoubanProxy =
-      process.env.NEXT_PUBLIC_DOUBAN_PROXY || '';
-    adminConfig.SiteConfig.DisableYellowFilter =
-      process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
 
     // 合并文件中的源信息
     fileConfig = runtimeConfig as unknown as ConfigFileStruct;
@@ -347,15 +351,25 @@ export async function getConfig(): Promise<AdminConfig> {
     // 将 Map 转换回数组
     adminConfig.SourceConfig = Array.from(sourceConfigMap.values());
 
-    // 覆盖 CustomCategories
+    // 合并文件中的自定义分类 (保留数据库中的自定义分类)
     const customCategories = fileConfig.custom_category || [];
-    adminConfig.CustomCategories = customCategories.map((category) => ({
-      name: category.name,
-      type: category.type,
-      query: category.query,
-      from: 'config',
-      disabled: false,
-    }));
+    const dbCategories = adminConfig.CustomCategories || [];
+    const categoryMap = new Map(
+      dbCategories.map((c) => [c.query + c.type, c])
+    );
+    customCategories.forEach((category) => {
+      const key = category.query + category.type;
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, {
+          name: category.name,
+          type: category.type,
+          query: category.query,
+          from: 'config',
+          disabled: false,
+        });
+      }
+    });
+    adminConfig.CustomCategories = Array.from(categoryMap.values());
 
     const ownerUser = process.env.USERNAME || '';
     // 检查配置中的站长用户是否和 USERNAME 匹配，如果不匹配则降级为普通用户
@@ -371,7 +385,7 @@ export async function getConfig(): Promise<AdminConfig> {
     });
 
     // 如果不在则添加
-    if (!containOwner) {
+    if (!containOwner && ownerUser) {
       adminConfig.UserConfig.Users.unshift({
         username: ownerUser,
         role: 'owner',

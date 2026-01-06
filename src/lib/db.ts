@@ -223,6 +223,129 @@ export class DbManager {
     }
     return {};
   }
+
+  // ---------- 新版分离存储方法 ----------
+
+  // 站点配置
+  async getSiteConfig(): Promise<AdminConfig['SiteConfig'] | null> {
+    if (typeof (this.storage as any).getSiteConfig === 'function') {
+      return (this.storage as any).getSiteConfig();
+    }
+    return null;
+  }
+
+  async setSiteConfig(config: AdminConfig['SiteConfig']): Promise<void> {
+    if (typeof (this.storage as any).setSiteConfig === 'function') {
+      await (this.storage as any).setSiteConfig(config);
+    }
+  }
+
+  // 视频源配置
+  async getSourceConfig(): Promise<AdminConfig['SourceConfig'] | null> {
+    if (typeof (this.storage as any).getSourceConfig === 'function') {
+      return (this.storage as any).getSourceConfig();
+    }
+    return null;
+  }
+
+  async setSourceConfig(config: AdminConfig['SourceConfig']): Promise<void> {
+    if (typeof (this.storage as any).setSourceConfig === 'function') {
+      await (this.storage as any).setSourceConfig(config);
+    }
+  }
+
+  // 自定义分类
+  async getCustomCategories(): Promise<AdminConfig['CustomCategories'] | null> {
+    if (typeof (this.storage as any).getCustomCategories === 'function') {
+      return (this.storage as any).getCustomCategories();
+    }
+    return null;
+  }
+
+  async setCustomCategories(categories: AdminConfig['CustomCategories']): Promise<void> {
+    if (typeof (this.storage as any).setCustomCategories === 'function') {
+      await (this.storage as any).setCustomCategories(categories);
+    }
+  }
+
+  // 允许注册
+  async getAllowRegister(): Promise<boolean> {
+    if (typeof (this.storage as any).getAllowRegister === 'function') {
+      return (this.storage as any).getAllowRegister();
+    }
+    return false;
+  }
+
+  async setAllowRegister(allow: boolean): Promise<void> {
+    if (typeof (this.storage as any).setAllowRegister === 'function') {
+      await (this.storage as any).setAllowRegister(allow);
+    }
+  }
+
+  // 用户角色
+  async getUserRole(userName: string): Promise<'owner' | 'admin' | 'user' | null> {
+    if (typeof (this.storage as any).getUserRole === 'function') {
+      return (this.storage as any).getUserRole(userName);
+    }
+    return null;
+  }
+
+  async setUserRole(userName: string, role: 'owner' | 'admin' | 'user'): Promise<void> {
+    if (typeof (this.storage as any).setUserRole === 'function') {
+      await (this.storage as any).setUserRole(userName, role);
+    }
+  }
+
+  async deleteUserRole(userName: string): Promise<void> {
+    if (typeof (this.storage as any).deleteUserRole === 'function') {
+      await (this.storage as any).deleteUserRole(userName);
+    }
+  }
+
+  // 用户封禁状态
+  async getUserBanned(userName: string): Promise<boolean> {
+    if (typeof (this.storage as any).getUserBanned === 'function') {
+      return (this.storage as any).getUserBanned(userName);
+    }
+    return false;
+  }
+
+  async setUserBanned(userName: string, banned: boolean): Promise<void> {
+    if (typeof (this.storage as any).setUserBanned === 'function') {
+      await (this.storage as any).setUserBanned(userName, banned);
+    }
+  }
+
+  // 获取所有用户及角色
+  async getAllUsersWithRoles(): Promise<Array<{ username: string; role: 'owner' | 'admin' | 'user'; banned?: boolean }>> {
+    if (typeof (this.storage as any).getAllUsersWithRoles === 'function') {
+      return (this.storage as any).getAllUsersWithRoles();
+    }
+    return [];
+  }
+
+  // 数据迁移
+  async migrateFromLegacy(): Promise<boolean> {
+    if (typeof (this.storage as any).migrateFromLegacy === 'function') {
+      return (this.storage as any).migrateFromLegacy();
+    }
+    return false;
+  }
+
+  // 从分离结构获取完整配置
+  async getAdminConfigFromSeparated(): Promise<AdminConfig | null> {
+    if (typeof (this.storage as any).getAdminConfigFromSeparated === 'function') {
+      return (this.storage as any).getAdminConfigFromSeparated();
+    }
+    return null;
+  }
+
+  // 保存完整配置到分离结构
+  async setAdminConfigSeparated(config: AdminConfig): Promise<void> {
+    if (typeof (this.storage as any).setAdminConfigSeparated === 'function') {
+      await (this.storage as any).setAdminConfigSeparated(config);
+    }
+  }
 }
 
 // 导出默认实例

@@ -24,6 +24,8 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ChevronDown,
   ChevronUp,
+  Database,
+  FileText,
   FolderOpen,
   Settings,
   Users,
@@ -1686,6 +1688,276 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
   );
 };
 
+// 配置文件编辑组件
+interface ConfigFilePanelProps {
+  role: 'owner' | 'admin' | null;
+}
+
+const ConfigFilePanel = ({ role }: ConfigFilePanelProps) => {
+  const [configContent, setConfigContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const isOwner = role === 'owner';
+
+  // 加载配置文件
+  const loadConfig = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/config_file');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '加载失败');
+      }
+      const data = await res.json();
+      setConfigContent(data.content || '');
+      setHasLoaded(true);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '加载配置文件失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 保存配置文件
+  const saveConfig = async () => {
+    if (!isOwner) {
+      showError('只有站长可以修改配置文件');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/config_file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: configContent }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '保存失败');
+      }
+      showSuccess('配置文件保存成功');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '保存配置文件失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className='space-y-4'>
+      <div className='flex items-center justify-between'>
+        <p className='text-sm text-gray-600 dark:text-gray-400'>
+          编辑 config.json 配置文件（JSON 格式）
+        </p>
+        {!hasLoaded && (
+          <button
+            onClick={loadConfig}
+            disabled={loading}
+            className='px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors disabled:opacity-50'
+          >
+            {loading ? '加载中...' : '加载配置'}
+          </button>
+        )}
+      </div>
+
+      {hasLoaded && (
+        <>
+          <textarea
+            value={configContent}
+            onChange={(e) => setConfigContent(e.target.value)}
+            disabled={!isOwner}
+            rows={20}
+            className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+              !isOwner ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
+            placeholder='配置文件内容...'
+          />
+          {!isOwner && (
+            <p className='text-sm text-yellow-600 dark:text-yellow-400'>
+              只有站长可以修改配置文件
+            </p>
+          )}
+          <div className='flex justify-end gap-2'>
+            <button
+              onClick={loadConfig}
+              disabled={loading}
+              className='px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50'
+            >
+              {loading ? '加载中...' : '重新加载'}
+            </button>
+            {isOwner && (
+              <button
+                onClick={saveConfig}
+                disabled={saving}
+                className={`px-4 py-2 ${
+                  saving
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                } text-white rounded-lg transition-colors`}
+              >
+                {saving ? '保存中...' : '保存'}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// 数据迁移组件
+interface DataMigrationPanelProps {
+  role: 'owner' | 'admin' | null;
+}
+
+const DataMigrationPanel = ({ role }: DataMigrationPanelProps) => {
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const isOwner = role === 'owner';
+
+  // 导出配置
+  const handleExport = async () => {
+    if (!isOwner) {
+      showError('只有站长可以导出数据');
+      return;
+    }
+    setExporting(true);
+    try {
+      const res = await fetch('/api/admin/data_migration/export');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '导出失败');
+      }
+      const data = await res.json();
+      
+      // 下载为 JSON 文件
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `moontv-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showSuccess('配置导出成功');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '导出失败');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // 导入配置
+  const handleImport = async () => {
+    if (!isOwner) {
+      showError('只有站长可以导入数据');
+      return;
+    }
+
+    // 创建文件选择器
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      // 确认导入
+      const { isConfirmed } = await Swal.fire({
+        title: '确认导入',
+        text: '导入将合并配置数据，已存在的项目不会被覆盖。是否继续？',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '确认导入',
+        cancelButtonText: '取消',
+      });
+      if (!isConfirmed) return;
+
+      setImporting(true);
+      try {
+        const content = await file.text();
+        const importData = JSON.parse(content);
+
+        const res = await fetch('/api/admin/data_migration/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(importData),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || '导入失败');
+        }
+
+        const result = await res.json();
+        showSuccess(result.message || '配置导入成功');
+        
+        // 刷新页面以显示导入的数据
+        setTimeout(() => window.location.reload(), 1500);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : '导入失败');
+      } finally {
+        setImporting(false);
+      }
+    };
+    input.click();
+  };
+
+  return (
+    <div className='space-y-4'>
+      <p className='text-sm text-gray-600 dark:text-gray-400'>
+        导出或导入站点配置数据，方便备份和迁移。
+      </p>
+
+      {!isOwner && (
+        <p className='text-sm text-yellow-600 dark:text-yellow-400'>
+          只有站长可以进行数据迁移操作
+        </p>
+      )}
+
+      <div className='flex gap-4'>
+        <button
+          onClick={handleExport}
+          disabled={exporting || !isOwner}
+          className={`flex-1 px-4 py-3 ${
+            exporting || !isOwner
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700'
+          } text-white rounded-lg transition-colors flex items-center justify-center gap-2`}
+        >
+          <Database size={18} />
+          {exporting ? '导出中...' : '导出配置'}
+        </button>
+        <button
+          onClick={handleImport}
+          disabled={importing || !isOwner}
+          className={`flex-1 px-4 py-3 ${
+            importing || !isOwner
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-green-600 hover:bg-green-700'
+          } text-white rounded-lg transition-colors flex items-center justify-center gap-2`}
+        >
+          <Database size={18} />
+          {importing ? '导入中...' : '导入配置'}
+        </button>
+      </div>
+
+      <div className='text-xs text-gray-500 dark:text-gray-400 space-y-1'>
+        <p>• 导出内容包括：站点配置、视频源配置、自定义分类、配置文件</p>
+        <p>• 导入时会合并数据，已存在的项目不会被覆盖</p>
+        <p>• 敏感信息（如代理地址）不会被导出</p>
+      </div>
+    </div>
+  );
+};
+
 function AdminPageClient() {
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1696,6 +1968,8 @@ function AdminPageClient() {
     videoSource: false,
     siteConfig: false,
     categoryConfig: false,
+    configFile: false,
+    dataMigration: false,
   });
 
   // 获取管理员配置
@@ -1866,6 +2140,36 @@ function AdminPageClient() {
               onToggle={() => toggleTab('categoryConfig')}
             >
               <CategoryConfig config={config} refreshConfig={fetchConfig} />
+            </CollapsibleTab>
+
+            {/* 配置文件标签 */}
+            <CollapsibleTab
+              title='配置文件'
+              icon={
+                <FileText
+                  size={20}
+                  className='text-gray-600 dark:text-gray-400'
+                />
+              }
+              isExpanded={expandedTabs.configFile}
+              onToggle={() => toggleTab('configFile')}
+            >
+              <ConfigFilePanel role={role} />
+            </CollapsibleTab>
+
+            {/* 数据迁移标签 */}
+            <CollapsibleTab
+              title='数据迁移'
+              icon={
+                <Database
+                  size={20}
+                  className='text-gray-600 dark:text-gray-400'
+                />
+              }
+              isExpanded={expandedTabs.dataMigration}
+              onToggle={() => toggleTab('dataMigration')}
+            >
+              <DataMigrationPanel role={role} />
             </CollapsibleTab>
           </div>
         </div>

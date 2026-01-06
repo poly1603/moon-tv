@@ -84,8 +84,10 @@ export async function POST(request: NextRequest) {
       DisableYellowFilter,
     };
 
-    // 写入数据库
-    if (storage && typeof (storage as any).setAdminConfig === 'function') {
+    // 写入数据库 (使用新的分离存储)
+    if (storage && typeof (storage as any).setSiteConfig === 'function') {
+      await (storage as any).setSiteConfig(adminConfig.SiteConfig);
+    } else if (storage && typeof (storage as any).setAdminConfig === 'function') {
       await (storage as any).setAdminConfig(adminConfig);
     }
 

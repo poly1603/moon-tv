@@ -263,7 +263,7 @@ export class UpstashRedisStorage implements IStorage {
       .filter((u): u is string => typeof u === 'string');
   }
 
-  // ---------- 管理员配置 ----------
+  // ---------- 管理员配置 (旧版，保留用于迁移) ----------
   private adminConfigKey() {
     return 'admin:config';
   }
@@ -275,6 +275,226 @@ export class UpstashRedisStorage implements IStorage {
 
   async setAdminConfig(config: AdminConfig): Promise<void> {
     await withRetry(() => this.client.set(this.adminConfigKey(), config));
+  }
+
+  // ---------- 新版分离存储 ----------
+
+  // 站点配置
+  private siteConfigKey() {
+    return 'site:config';
+  }
+
+  async getSiteConfig(): Promise<AdminConfig['SiteConfig'] | null> {
+    const val = await withRetry(() => this.client.get(this.siteConfigKey()));
+    return val ? (val as AdminConfig['SiteConfig']) : null;
+  }
+
+  async setSiteConfig(config: AdminConfig['SiteConfig']): Promise<void> {
+    await withRetry(() => this.client.set(this.siteConfigKey(), config));
+  }
+
+  // 视频源配置
+  private sourceConfigKey() {
+    return 'site:sources';
+  }
+
+  async getSourceConfig(): Promise<AdminConfig['SourceConfig'] | null> {
+    const val = await withRetry(() => this.client.get(this.sourceConfigKey()));
+    return val ? (val as AdminConfig['SourceConfig']) : null;
+  }
+
+  async setSourceConfig(config: AdminConfig['SourceConfig']): Promise<void> {
+    await withRetry(() => this.client.set(this.sourceConfigKey(), config));
+  }
+
+  // 自定义分类
+  private categoriesKey() {
+    return 'site:categories';
+  }
+
+  async getCustomCategories(): Promise<AdminConfig['CustomCategories'] | null> {
+    const val = await withRetry(() => this.client.get(this.categoriesKey()));
+    return val ? (val as AdminConfig['CustomCategories']) : null;
+  }
+
+  async setCustomCategories(categories: AdminConfig['CustomCategories']): Promise<void> {
+    await withRetry(() => this.client.set(this.categoriesKey(), categories));
+  }
+
+  // 允许注册
+  private allowRegisterKey() {
+    return 'site:allow_register';
+  }
+
+  async getAllowRegister(): Promise<boolean> {
+    const val = await withRetry(() => this.client.get(this.allowRegisterKey()));
+    return val === true || val === 'true';
+  }
+
+  async setAllowRegister(allow: boolean): Promise<void> {
+    await withRetry(() => this.client.set(this.allowRegisterKey(), allow));
+  }
+
+  // 用户角色
+  private userRoleKey(user: string) {
+    return `u:${user}:role`;
+  }
+
+  async getUserRole(userName: string): Promise<'owner' | 'admin' | 'user' | null> {
+    const val = await withRetry(() => this.client.get(this.userRoleKey(userName)));
+    if (val === 'owner' || val === 'admin' || val === 'user') {
+      return val;
+    }
+    return null;
+  }
+
+  async setUserRole(userName: string, role: 'owner' | 'admin' | 'user'): Promise<void> {
+    await withRetry(() => this.client.set(this.userRoleKey(userName), role));
+  }
+
+  async deleteUserRole(userName: string): Promise<void> {
+    await withRetry(() => this.client.del(this.userRoleKey(userName)));
+  }
+
+  // 用户封禁状态
+  private userBannedKey(user: string) {
+    return `u:${user}:banned`;
+  }
+
+  async getUserBanned(userName: string): Promise<boolean> {
+    const val = await withRetry(() => this.client.get(this.userBannedKey(userName)));
+    return val === true || val === 'true';
+  }
+
+  async setUserBanned(userName: string, banned: boolean): Promise<void> {
+    if (banned) {
+      await withRetry(() => this.client.set(this.userBannedKey(userName), true));
+    } else {
+      await withRetry(() => this.client.del(this.userBannedKey(userName)));
+    }
+  }
+
+  // 获取所有用户及其角色/状态
+  async getAllUsersWithRoles(): Promise<Array<{ username: string; role: 'owner' | 'admin' | 'user'; banned?: boolean }>> {
+    const userNames = await this.getAllUsers();
+    const users: Array<{ username: string; role: 'owner' | 'admin' | 'user'; banned?: boolean }> = [];
+    
+    for (const username of userNames) {
+      const role = await this.getUserRole(username) || 'user';
+      const banned = await this.getUserBanned(username);
+      users.push({ username, role, banned: banned || undefined });
+    }
+    
+    return users;
+  }
+
+  // 数据迁移: 从旧的 admin:config 迁移到新结构
+  async migrateFromLegacy(): Promise<boolean> {
+    // 检查是否存在旧的 admin:config
+    const legacyConfig = await this.getAdminConfig();
+    if (!legacyConfig) {
+      return false; // 没有旧数据需要迁移
+    }
+
+    // 检查是否已经迁移过 (新 key 已存在)
+    const siteConfig = await this.getSiteConfig();
+    if (siteConfig) {
+      return false; // 已经迁移过
+    }
+
+    console.log('[Migration] Starting migration from legacy admin:config...');
+
+    // 迁移站点配置
+    if (legacyConfig.SiteConfig) {
+      await this.setSiteConfig(legacyConfig.SiteConfig);
+      console.log('[Migration] Site config migrated');
+    }
+
+    // 迁移视频源配置
+    if (legacyConfig.SourceConfig) {
+      await this.setSourceConfig(legacyConfig.SourceConfig);
+      console.log('[Migration] Source config migrated');
+    }
+
+    // 迁移自定义分类
+    if (legacyConfig.CustomCategories) {
+      await this.setCustomCategories(legacyConfig.CustomCategories);
+      console.log('[Migration] Custom categories migrated');
+    }
+
+    // 迁移允许注册设置
+    if (legacyConfig.UserConfig) {
+      await this.setAllowRegister(legacyConfig.UserConfig.AllowRegister || false);
+      console.log('[Migration] Allow register setting migrated');
+
+      // 迁移用户角色和封禁状态
+      for (const user of legacyConfig.UserConfig.Users || []) {
+        if (user.role && user.role !== 'user') {
+          await this.setUserRole(user.username, user.role);
+        }
+        if (user.banned) {
+          await this.setUserBanned(user.username, true);
+        }
+      }
+      console.log('[Migration] User roles migrated');
+    }
+
+    // 删除旧的 admin:config
+    await withRetry(() => this.client.del(this.adminConfigKey()));
+    console.log('[Migration] Legacy admin:config removed');
+    console.log('[Migration] Migration completed successfully!');
+
+    return true;
+  }
+
+  // 从新结构组装 AdminConfig (用于兼容现有 API)
+  async getAdminConfigFromSeparated(): Promise<AdminConfig | null> {
+    const siteConfig = await this.getSiteConfig();
+    const sourceConfig = await this.getSourceConfig();
+    const categories = await this.getCustomCategories();
+    const allowRegister = await this.getAllowRegister();
+    const users = await this.getAllUsersWithRoles();
+
+    // 如果没有站点配置，说明没有初始化
+    if (!siteConfig) {
+      return null;
+    }
+
+    return {
+      SiteConfig: siteConfig,
+      UserConfig: {
+        AllowRegister: allowRegister,
+        Users: users,
+      },
+      SourceConfig: sourceConfig || [],
+      CustomCategories: categories || [],
+    };
+  }
+
+  // 保存完整的 AdminConfig 到分离结构
+  async setAdminConfigSeparated(config: AdminConfig): Promise<void> {
+    // 保存站点配置
+    await this.setSiteConfig(config.SiteConfig);
+
+    // 保存视频源配置
+    await this.setSourceConfig(config.SourceConfig);
+
+    // 保存自定义分类
+    await this.setCustomCategories(config.CustomCategories);
+
+    // 保存允许注册设置
+    await this.setAllowRegister(config.UserConfig.AllowRegister);
+
+    // 保存用户角色和封禁状态
+    for (const user of config.UserConfig.Users) {
+      if (user.role && user.role !== 'user') {
+        await this.setUserRole(user.username, user.role);
+      } else {
+        // 如果是普通用户，删除可能存在的 role key
+        await this.deleteUserRole(user.username);
+      }
+      await this.setUserBanned(user.username, user.banned || false);
+    }
   }
 
   // ---------- 跳过片头片尾配置 ----------

@@ -73,7 +73,12 @@ export async function middleware(request: NextRequest) {
   // 从cookie获取认证信息
   const authInfo = getAuthInfoFromCookie(request);
 
+  console.log('[Middleware Debug] pathname:', pathname);
+  console.log('[Middleware Debug] storageType:', storageType);
+  console.log('[Middleware Debug] authInfo:', authInfo ? JSON.stringify(authInfo) : 'null');
+
   if (!authInfo) {
+    console.log('[Middleware Debug] No authInfo, redirecting to login');
     return handleAuthFailure(request, pathname);
   }
 
@@ -86,8 +91,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // 其他模式：只验证签名
-  // 检查是否有用户名（非localStorage模式下密码不存储在cookie中）
+  // 检查是否有用户名（非lasticsearch模式下密码不存储在cookie中）
   if (!authInfo.username || !authInfo.signature) {
+    console.log('[Middleware Debug] Missing username or signature, redirecting to login');
     return handleAuthFailure(request, pathname);
   }
 
@@ -99,13 +105,17 @@ export async function middleware(request: NextRequest) {
       password
     );
 
+    console.log('[Middleware Debug] Signature verification result:', isValidSignature);
+
     // 签名验证通过即可
     if (isValidSignature) {
+      console.log('[Middleware Debug] Auth success, allowing access');
       return NextResponse.next();
     }
   }
 
   // 签名验证失败或不存在签名
+  console.log('[Middleware Debug] Signature verification failed, redirecting to login');
   return handleAuthFailure(request, pathname);
 }
 
@@ -124,17 +134,17 @@ async function verifySignature(
   try {
     const key = await getHmacKey(secret);
 
-    const signatureBuffer = hexToUint8Array(signature);
-    if (signatureBuffer.length === 0) {
+    const signatureBytes = hexToUint8Array(signature);
+    if (signatureBytes.length === 0) {
       return false;
     }
 
-    // 验证签名
+    // Edge Runtime 中直接使用 Uint8Array
     return await crypto.subtle.verify(
       'HMAC',
       key,
-      signatureBuffer.buffer as ArrayBuffer,
-      messageData.buffer as ArrayBuffer
+      signatureBytes,
+      messageData
     );
   } catch (error) {
     console.error('签名验证失败:', error);
