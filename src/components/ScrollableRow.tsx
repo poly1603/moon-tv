@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -139,12 +140,14 @@ export default function ScrollableRow({
         {children}
       </div>
       {showLeftScroll && (
-        <div
-          className={`hidden sm:flex absolute left-0 top-0 bottom-0 w-16 items-center justify-center z-[600] transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'
-            }`}
+        <motion.div
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : -10 }}
+          transition={{ duration: 0.2 }}
+          className='hidden sm:flex absolute left-0 top-0 bottom-0 w-16 items-center justify-center z-[600]'
           style={{
             background: 'transparent',
-            pointerEvents: 'none', // 允许点击穿透
+            pointerEvents: 'none',
           }}
         >
           <div
@@ -156,23 +159,27 @@ export default function ScrollableRow({
               pointerEvents: 'auto',
             }}
           >
-            <button
+            <motion.button
               onClick={handleScrollLeftClick}
-              className='w-12 h-12 bg-white/95 rounded-full shadow-lg flex items-center justify-center hover:bg-white border border-gray-200 transition-transform hover:scale-105 dark:bg-gray-800/90 dark:hover:bg-gray-700 dark:border-gray-600'
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className='w-12 h-12 bg-white/95 rounded-full shadow-lg flex items-center justify-center border border-gray-200/50 dark:bg-gray-800/95 dark:border-gray-600/50'
             >
               <ChevronLeft className='w-6 h-6 text-gray-600 dark:text-gray-300' />
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {showRightScroll && (
-        <div
-          className={`hidden sm:flex absolute right-0 top-0 bottom-0 w-16 items-center justify-center z-[600] transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'
-            }`}
+        <motion.div
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : 10 }}
+          transition={{ duration: 0.2 }}
+          className='hidden sm:flex absolute right-0 top-0 bottom-0 w-16 items-center justify-center z-[600]'
           style={{
             background: 'transparent',
-            pointerEvents: 'none', // 允许点击穿透
+            pointerEvents: 'none',
           }}
         >
           <div
@@ -184,14 +191,16 @@ export default function ScrollableRow({
               pointerEvents: 'auto',
             }}
           >
-            <button
+            <motion.button
               onClick={handleScrollRightClick}
-              className='w-12 h-12 bg-white/95 rounded-full shadow-lg flex items-center justify-center hover:bg-white border border-gray-200 transition-transform hover:scale-105 dark:bg-gray-800/90 dark:hover:bg-gray-700 dark:border-gray-600'
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className='w-12 h-12 bg-white/95 rounded-full shadow-lg flex items-center justify-center border border-gray-200/50 dark:bg-gray-800/95 dark:border-gray-600/50'
             >
               <ChevronRight className='w-6 h-6 text-gray-600 dark:text-gray-300' />
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );

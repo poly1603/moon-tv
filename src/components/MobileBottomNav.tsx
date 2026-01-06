@@ -2,6 +2,7 @@
 
 'use client';
 
+import { motion } from 'framer-motion';
 import { Clover, Film, Home, Search, Star, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -70,7 +71,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
 
   return (
     <nav
-      className='md:hidden fixed left-0 right-0 z-[600] bg-white/90 backdrop-blur-xl border-t border-gray-200/50 overflow-hidden dark:bg-gray-900/80 dark:border-gray-700/50'
+      className='md:hidden fixed left-0 right-0 z-[600] bg-white/80 backdrop-blur-2xl border-t border-gray-200/30 overflow-hidden dark:bg-gray-900/90 dark:border-gray-700/30 shadow-lg'
       style={{
         /* 紧贴视口底部，同时在内部留出安全区高度 */
         bottom: 0,
@@ -79,36 +80,60 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       }}
     >
       <ul className='flex items-center overflow-x-auto scrollbar-hide'>
-        {navItems.map((item) => {
+        {navItems.map((item, index) => {
           const active = isActive(item.href);
           return (
-            <li
+            <motion.li
               key={item.href}
               className='flex-shrink-0'
               style={{ width: '20vw', minWidth: '20vw' }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
             >
               <Link
                 href={item.href}
-                className='flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
+                className='relative flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
               >
-                <item.icon
-                  className={`h-6 w-6 ${
-                    active
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-gray-500 dark:text-gray-400'
-                  }`}
-                />
+                {/* 活跃指示器背景 */}
+                {active && (
+                  <motion.div
+                    layoutId='mobileNavIndicator'
+                    className='absolute inset-x-2 inset-y-1 bg-gradient-to-r from-green-500/15 to-emerald-500/10 rounded-xl'
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                  />
+                )}
+                <motion.div
+                  whileTap={{ scale: 0.9 }}
+                  className='relative z-10'
+                >
+                  <item.icon
+                    className={`h-6 w-6 transition-all duration-300 ${active
+                        ? 'text-green-600 dark:text-green-400 scale-110'
+                        : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                  />
+                </motion.div>
                 <span
-                  className={
-                    active
-                      ? 'text-green-600 dark:text-green-400'
+                  className={`relative z-10 transition-all duration-300 ${active
+                      ? 'text-green-600 dark:text-green-400 font-medium'
                       : 'text-gray-600 dark:text-gray-300'
-                  }
+                    }`}
                 >
                   {item.label}
                 </span>
+                {/* 活跃指示点 */}
+                {active && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className='absolute -top-0.5 w-1 h-1 bg-green-500 rounded-full'
+                  />
+                )}
               </Link>
-            </li>
+            </motion.li>
           );
         })}
       </ul>

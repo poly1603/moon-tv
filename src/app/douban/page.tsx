@@ -2,6 +2,7 @@
 
 'use client';
 
+import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,6 +15,29 @@ import DoubanCustomSelector from '@/components/DoubanCustomSelector';
 import DoubanSelector from '@/components/DoubanSelector';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
+
+// 列表项交错动画
+const staggerContainer = {
+  enter: {
+    transition: {
+      staggerChildren: 0.03,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const staggerItem = {
+  initial: { opacity: 0, y: 20, scale: 0.95 },
+  enter: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.4,
+      ease: 'easeOut' as const,
+    },
+  },
+};
 
 function DoubanPageClient() {
   const searchParams = useSearchParams();
@@ -359,10 +383,10 @@ function DoubanPageClient() {
     return type === 'movie'
       ? '电影'
       : type === 'tv'
-      ? '电视剧'
-      : type === 'show'
-      ? '综艺'
-      : '自定义';
+        ? '电视剧'
+        : type === 'show'
+          ? '综艺'
+          : '自定义';
   };
 
   const getActivePath = () => {
@@ -377,21 +401,20 @@ function DoubanPageClient() {
   return (
     <PageLayout activePath={getActivePath()}>
       <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible'>
-        {/* 页面标题和选择器 */}
-        <div className='mb-6 sm:mb-8 space-y-4 sm:space-y-6'>
-          {/* 页面标题 */}
-          <div>
-            <h1 className='text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 dark:text-gray-200'>
-              {getPageTitle()}
-            </h1>
-            <p className='text-sm sm:text-base text-gray-600 dark:text-gray-400'>
-              来自豆瓣的精选内容
-            </p>
-          </div>
+        {/* 页面标题 */}
+        <div className='mb-4 sm:mb-6'>
+          <h1 className='text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 dark:text-gray-200'>
+            {getPageTitle()}
+          </h1>
+          <p className='text-sm sm:text-base text-gray-600 dark:text-gray-400'>
+            来自豆瓣的精选内容
+          </p>
+        </div>
 
-          {/* 选择器组件 */}
+        {/* 选择器组件 - 吸顶效果 */}
+        <div className='sticky top-0 z-30 -mx-4 sm:-mx-10 px-4 sm:px-10 py-3 bg-gradient-to-b from-white/95 via-white/90 to-white/0 dark:from-gray-900/95 dark:via-gray-900/90 dark:to-gray-900/0 backdrop-blur-md'>
           {type !== 'custom' ? (
-            <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm'>
+            <div className='bg-white/80 dark:bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-200/40 dark:border-gray-700/40 shadow-sm backdrop-blur-sm'>
               <DoubanSelector
                 type={type as 'movie' | 'tv' | 'show'}
                 primarySelection={primarySelection}
@@ -401,7 +424,7 @@ function DoubanPageClient() {
               />
             </div>
           ) : (
-            <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm'>
+            <div className='bg-white/80 dark:bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-200/40 dark:border-gray-700/40 shadow-sm backdrop-blur-sm'>
               <DoubanCustomSelector
                 customCategories={customCategories}
                 primarySelection={primarySelection}
@@ -413,28 +436,37 @@ function DoubanPageClient() {
           )}
         </div>
 
-        {/* 内容展示区域 */}
-        <div className='max-w-[95%] mx-auto mt-8 overflow-visible'>
+        {/* 内容展示区域 - 与选择器对齐 */}
+        <div className='mt-6 overflow-visible'>
           {/* 内容网格 */}
-          <div className='justify-start grid grid-cols-3 gap-x-2 gap-y-12 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20'>
+          <motion.div
+            variants={staggerContainer}
+            initial='initial'
+            animate='enter'
+            className='justify-start grid grid-cols-3 gap-x-2 gap-y-12 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-6 sm:gap-y-16'
+          >
             {loading || !selectorsReady
               ? // 显示骨架屏
-                skeletonData.map((index) => <DoubanCardSkeleton key={index} />)
+              skeletonData.map((index) => <DoubanCardSkeleton key={index} />)
               : // 显示实际数据
-                doubanData.map((item, index) => (
-                  <div key={`${item.title}-${index}`} className='w-full'>
-                    <VideoCard
-                      from='douban'
-                      title={item.title}
-                      poster={item.poster}
-                      douban_id={item.id}
-                      rate={item.rate}
-                      year={item.year}
-                      type={type === 'movie' ? 'movie' : ''} // 电影类型严格控制，tv 不控
-                    />
-                  </div>
-                ))}
-          </div>
+              doubanData.map((item, index) => (
+                <motion.div
+                  key={`${item.title}-${index}`}
+                  variants={staggerItem}
+                  className='w-full'
+                >
+                  <VideoCard
+                    from='douban'
+                    title={item.title}
+                    poster={item.poster}
+                    douban_id={item.id}
+                    rate={item.rate}
+                    year={item.year}
+                    type={type === 'movie' ? 'movie' : ''} // 电影类型严格控制，tv 不控
+                  />
+                </motion.div>
+              ))}
+          </motion.div>
 
           {/* 加载更多指示器 */}
           {hasMore && !loading && (
@@ -450,8 +482,10 @@ function DoubanPageClient() {
             >
               {isLoadingMore && (
                 <div className='flex items-center gap-2'>
-                  <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-green-500'></div>
-                  <span className='text-gray-600'>加载中...</span>
+                  <div className='relative'>
+                    <div className='animate-spin rounded-full h-6 w-6 border-2 border-green-500/20 border-t-green-500'></div>
+                  </div>
+                  <span className='text-gray-600 dark:text-gray-400'>加载中...</span>
                 </div>
               )}
             </div>
@@ -459,12 +493,12 @@ function DoubanPageClient() {
 
           {/* 没有更多数据提示 */}
           {!hasMore && doubanData.length > 0 && (
-            <div className='text-center text-gray-500 py-8'>已加载全部内容</div>
+            <div className='text-center text-gray-500 dark:text-gray-400 py-8'>已加载全部内容</div>
           )}
 
           {/* 空状态 */}
           {!loading && doubanData.length === 0 && (
-            <div className='text-center text-gray-500 py-8'>暂无相关内容</div>
+            <div className='text-center text-gray-500 dark:text-gray-400 py-8'>暂无相关内容</div>
           )}
         </div>
       </div>

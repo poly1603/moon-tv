@@ -257,3 +257,85 @@ export async function fetchDoubanList(
     throw new Error(`获取豆瓣分类数据失败: ${(error as Error).message}`);
   }
 }
+
+
+interface HotSearchItem {
+  word: string;
+  type: string;
+}
+
+interface HotSearchResult {
+  code: number;
+  message: string;
+  list: HotSearchItem[];
+}
+
+/**
+ * 获取豆瓣热门搜索
+ */
+export async function getHotSearch(): Promise<HotSearchResult> {
+  if (shouldUseDoubanClient()) {
+    return fetchHotSearch();
+  } else {
+    try {
+      const response = await fetch('/api/douban/hot-search');
+      if (!response.ok) {
+        throw new Error('获取热门搜索失败');
+      }
+      return response.json();
+    } catch {
+      return { code: 200, message: '获取失败', list: [] };
+    }
+  }
+}
+
+/**
+ * 客户端直接获取豆瓣热门搜索（从热门电影/剧集中提取）
+ */
+async function fetchHotSearch(): Promise<HotSearchResult> {
+  try {
+    const [movieRes, tvRes] = await Promise.allSettled([
+      fetchWithTimeout(
+        'https://movie.douban.com/j/search_subjects?type=movie&tag=热门&sort=recommend&page_limit=6&page_start=0'
+      ),
+      fetchWithTimeout(
+        'https://movie.douban.com/j/search_subjects?type=tv&tag=热门&sort=recommend&page_limit=6&page_start=0'
+      ),
+    ]);
+
+    const list: HotSearchItem[] = [];
+    const seen = new Set<string>();
+
+    if (movieRes.status === 'fulfilled' && movieRes.value.ok) {
+      const movieData = await movieRes.value.json();
+      if (movieData.subjects) {
+        for (const item of movieData.subjects) {
+          if (item.title && !seen.has(item.title)) {
+            seen.add(item.title);
+            list.push({ word: item.title, type: 'movie' });
+          }
+        }
+      }
+    }
+
+    if (tvRes.status === 'fulfilled' && tvRes.value.ok) {
+      const tvData = await tvRes.value.json();
+      if (tvData.subjects) {
+        for (const item of tvData.subjects) {
+          if (item.title && !seen.has(item.title)) {
+            seen.add(item.title);
+            list.push({ word: item.title, type: 'tv' });
+          }
+        }
+      }
+    }
+
+    return {
+      code: 200,
+      message: list.length > 0 ? '获取成功' : '暂无数据',
+      list,
+    };
+  } catch {
+    return { code: 200, message: '获取失败', list: [] };
+  }
+}

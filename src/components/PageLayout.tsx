@@ -1,60 +1,113 @@
+'use client';
+
+import { AnimatePresence, motion } from 'framer-motion';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+
 import { BackButton } from './BackButton';
-import MobileBottomNav from './MobileBottomNav';
-import MobileHeader from './MobileHeader';
-import Sidebar from './Sidebar';
-import { ThemeToggle } from './ThemeToggle';
-import { UserMenu } from './UserMenu';
 
 interface PageLayoutProps {
   children: React.ReactNode;
   activePath?: string;
 }
 
-const PageLayout = ({ children, activePath = '/' }: PageLayoutProps) => {
+/**
+ * 页面布局组件 - 只负责内容区域的动画
+ * 侧边栏和导航已移至 AppShell 组件
+ */
+const PageLayout = ({ children, activePath }: PageLayoutProps) => {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 构建完整路径用于动画 key
+  const fullPath = activePath || (searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname);
+
+  const [currentPath, setCurrentPath] = useState(fullPath);
+  const prevPathRef = useRef(currentPath);
+  const [direction, setDirection] = useState(1);
+
+  // 路径优先级映射，用于确定切换方向
+  const pathPriority: Record<string, number> = {
+    '/': 0,
+    '/search': 1,
+    '/douban?type=movie': 2,
+    '/douban?type=tv': 3,
+    '/douban?type=show': 4,
+    '/douban?type=custom': 5,
+    '/play': 6,
+  };
+
+  useEffect(() => {
+    if (fullPath !== prevPathRef.current) {
+      // 计算切换方向
+      const prevPriority = pathPriority[prevPathRef.current] ?? 0;
+      const newPriority = pathPriority[fullPath] ?? 0;
+      setDirection(newPriority >= prevPriority ? 1 : -1);
+      prevPathRef.current = fullPath;
+      setCurrentPath(fullPath);
+    }
+  }, [fullPath]);
+
+  // 根据方向调整动画
+  const getVariants = (dir: number) => ({
+    initial: {
+      opacity: 0,
+      x: dir > 0 ? 40 : -40,
+      filter: 'blur(4px)',
+    },
+    enter: {
+      opacity: 1,
+      x: 0,
+      filter: 'blur(0px)',
+      transition: {
+        duration: 0.35,
+        ease: [0.25, 0.1, 0.25, 1],
+      },
+    },
+    exit: {
+      opacity: 0,
+      x: dir > 0 ? -40 : 40,
+      filter: 'blur(4px)',
+      transition: {
+        duration: 0.25,
+        ease: [0.25, 0.1, 0.25, 1],
+      },
+    },
+  });
+
+  const showBackButton = pathname === '/play';
+
   return (
-    <div className='w-full min-h-screen'>
-      {/* 移动端头部 */}
-      <MobileHeader showBackButton={['/play'].includes(activePath)} />
+    <>
+      {/* 桌面端左上角返回按钮 */}
+      {showBackButton && (
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className='absolute top-3 left-3 z-20 hidden md:flex'
+        >
+          <BackButton />
+        </motion.div>
+      )}
 
-      {/* 主要布局容器 */}
-      <div className='flex md:grid md:grid-cols-[auto_1fr] w-full min-h-screen md:min-h-auto'>
-        {/* 侧边栏 - 桌面端显示，移动端隐藏 */}
-        <div className='hidden md:block'>
-          <Sidebar activePath={activePath} />
-        </div>
-
-        {/* 主内容区域 */}
-        <div className='relative min-w-0 flex-1 transition-all duration-300'>
-          {/* 桌面端左上角返回按钮 */}
-          {['/play'].includes(activePath) && (
-            <div className='absolute top-3 left-1 z-20 hidden md:flex'>
-              <BackButton />
-            </div>
-          )}
-
-          {/* 桌面端顶部按钮 */}
-          <div className='absolute top-2 right-4 z-20 hidden md:flex items-center gap-2'>
-            <ThemeToggle />
-            <UserMenu />
-          </div>
-
-          {/* 主内容 */}
-          <main
-            className='flex-1 md:min-h-0 mb-14 md:mb-0'
-            style={{
-              paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom))',
-            }}
-          >
-            {children}
-          </main>
-        </div>
-      </div>
-
-      {/* 移动端底部导航 */}
-      <div className='md:hidden'>
-        <MobileBottomNav activePath={activePath} />
-      </div>
-    </div>
+      {/* 主内容 - 带切换动画 */}
+      <AnimatePresence mode='wait' initial={false}>
+        <motion.main
+          key={currentPath}
+          initial='initial'
+          animate='enter'
+          exit='exit'
+          variants={getVariants(direction)}
+          className='flex-1 md:min-h-0 mb-14 md:mb-0'
+          style={{
+            paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          {children}
+        </motion.main>
+      </AnimatePresence>
+    </>
   );
 };
 

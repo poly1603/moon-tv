@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
+import { motion } from 'framer-motion';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface CapsuleSwitchProps {
@@ -62,17 +63,22 @@ const CapsuleSwitch: React.FC<CapsuleSwitchProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative inline-flex bg-gray-300/80 rounded-full p-1 dark:bg-gray-700 ${
-        className || ''
-      }`}
+      className={`relative inline-flex bg-gray-200/80 rounded-full p-1.5 shadow-inner dark:bg-gray-700/80 ${className || ''
+        }`}
     >
       {/* 滑动的白色背景指示器 */}
       {indicatorStyle.width > 0 && (
-        <div
-          className='absolute top-1 bottom-1 bg-white dark:bg-gray-500 rounded-full shadow-sm transition-all duration-300 ease-out'
-          style={{
-            left: `${indicatorStyle.left}px`,
-            width: `${indicatorStyle.width}px`,
+        <motion.div
+          className='absolute top-1.5 bottom-1.5 bg-white dark:bg-gray-600 rounded-full shadow-md'
+          initial={false}
+          animate={{
+            left: indicatorStyle.left,
+            width: indicatorStyle.width,
+          }}
+          transition={{
+            type: 'spring',
+            stiffness: 500,
+            damping: 35,
           }}
         />
       )}
@@ -80,20 +86,20 @@ const CapsuleSwitch: React.FC<CapsuleSwitchProps> = ({
       {options.map((opt, index) => {
         const isActive = active === opt.value;
         return (
-          <button
+          <motion.button
             key={opt.value}
             ref={(el) => {
               buttonRefs.current[index] = el;
             }}
             onClick={() => onChange(opt.value)}
-            className={`relative z-10 w-16 px-3 py-1 text-xs sm:w-20 sm:py-2 sm:text-sm rounded-full font-medium transition-all duration-200 cursor-pointer ${
-              isActive
+            whileTap={{ scale: 0.95 }}
+            className={`relative z-10 w-16 px-3 py-1.5 text-xs sm:w-20 sm:py-2 sm:text-sm rounded-full font-medium transition-colors duration-200 cursor-pointer ${isActive
                 ? 'text-gray-900 dark:text-gray-100'
-                : 'text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
-            }`}
+                : 'text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
           >
             {opt.label}
-          </button>
+          </motion.button>
         );
       })}
     </div>

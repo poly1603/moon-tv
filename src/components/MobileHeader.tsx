@@ -1,5 +1,6 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 
 import { BackButton } from './BackButton';
@@ -14,7 +15,7 @@ interface MobileHeaderProps {
 const MobileHeader = ({ showBackButton = false }: MobileHeaderProps) => {
   const { siteName } = useSite();
   return (
-    <header className='md:hidden relative w-full bg-white/70 backdrop-blur-xl border-b border-gray-200/50 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/50'>
+    <header className='md:hidden relative w-full bg-white/80 backdrop-blur-2xl border-b border-gray-200/30 shadow-sm dark:bg-gray-900/80 dark:border-gray-700/30'>
       <div className='h-12 flex items-center justify-between px-4'>
         {/* 左侧：返回按钮和设置按钮 */}
         <div className='flex items-center gap-2'>
@@ -32,9 +33,15 @@ const MobileHeader = ({ showBackButton = false }: MobileHeaderProps) => {
       <div className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'>
         <Link
           href='/'
-          className='text-2xl font-bold text-green-600 tracking-tight hover:opacity-80 transition-opacity'
+          className='block hover:opacity-80 transition-opacity'
         >
-          {siteName}
+          <motion.span
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className='text-2xl font-bold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent tracking-tight'
+          >
+            {siteName}
+          </motion.span>
         </Link>
       </div>
     </header>

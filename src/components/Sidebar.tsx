@@ -2,7 +2,8 @@
 
 'use client';
 
-import { Clover, Film, Home, Menu, Search, Star, Tv } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Clover, Film, Heart, Home, Menu, Search, Star, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -15,6 +16,8 @@ import {
 } from 'react';
 
 import { useSite } from './SiteProvider';
+import { ThemeToggle } from './ThemeToggle';
+import { UserMenu } from './UserMenu';
 
 interface SidebarContextType {
   isCollapsed: boolean;
@@ -32,11 +35,16 @@ const Logo = () => {
   return (
     <Link
       href='/'
-      className='flex items-center justify-center h-16 select-none hover:opacity-80 transition-opacity duration-200'
+      className='flex items-center justify-center h-16 select-none hover:opacity-80 transition-all duration-300'
     >
-      <span className='text-2xl font-bold text-green-600 tracking-tight'>
+      <motion.span
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className='text-2xl font-bold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent tracking-tight'
+      >
         {siteName}
-      </span>
+      </motion.span>
     </Link>
   );
 };
@@ -52,6 +60,81 @@ declare global {
     __sidebarCollapsed?: boolean;
   }
 }
+
+// 导航项组件
+interface NavItemProps {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  isActive: boolean;
+  isCollapsed: boolean;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}
+
+const NavItem = ({
+  href,
+  icon: Icon,
+  label,
+  isActive,
+  isCollapsed,
+  onClick,
+}: NavItemProps) => {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`group relative flex items-center rounded-xl px-3 py-2.5 font-medium min-h-[44px] ${isCollapsed ? 'justify-center' : 'justify-start gap-3'
+        } ${isActive
+          ? 'text-green-700 dark:text-green-400'
+          : 'text-gray-600 hover:bg-gray-100/60 hover:text-green-600 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-green-400'
+        } transition-colors duration-200`}
+    >
+      {/* 活跃背景色块动画 */}
+      {isActive && (
+        <motion.div
+          layoutId='activeNavBackground'
+          className='absolute inset-0 bg-gradient-to-r from-green-500/20 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/10 rounded-xl shadow-sm'
+          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        />
+      )}
+
+      <motion.div
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        className='relative z-10 w-5 h-5 flex items-center justify-center'
+      >
+        <Icon
+          className={`h-5 w-5 transition-colors duration-200 ${isActive
+            ? 'text-green-600 dark:text-green-400'
+            : 'text-gray-500 group-hover:text-green-600 dark:text-gray-400 dark:group-hover:text-green-400'
+            }`}
+        />
+      </motion.div>
+
+      <AnimatePresence>
+        {!isCollapsed && (
+          <motion.span
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: 'auto' }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.2 }}
+            className='relative z-10 whitespace-nowrap overflow-hidden'
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+
+      {/* Tooltip for collapsed state */}
+      {isCollapsed && (
+        <div className='absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 dark:bg-gray-700'>
+          {label}
+          <div className='absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900 dark:border-r-gray-700' />
+        </div>
+      )}
+    </Link>
+  );
+};
 
 const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
   const router = useRouter();
@@ -162,82 +245,62 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
       <div className='hidden md:flex'>
         <aside
           data-sidebar
-          className={`fixed top-0 left-0 h-screen bg-white/40 backdrop-blur-xl transition-all duration-300 border-r border-gray-200/50 z-10 shadow-lg dark:bg-gray-900/70 dark:border-gray-700/50 ${
-            isCollapsed ? 'w-16' : 'w-64'
-          }`}
+          className={`fixed top-0 left-0 h-screen bg-white/60 backdrop-blur-2xl transition-all duration-300 border-r border-gray-200/30 z-10 shadow-xl dark:bg-gray-900/80 dark:border-gray-700/30 ${isCollapsed ? 'w-16' : 'w-64'
+            }`}
           style={{
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
           }}
         >
           <div className='flex h-full flex-col'>
             {/* 顶部 Logo 区域 */}
             <div className='relative h-16'>
-              <div
-                className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${
-                  isCollapsed ? 'opacity-0' : 'opacity-100'
-                }`}
-              >
-                <div className='w-[calc(100%-4rem)] flex justify-center'>
-                  {!isCollapsed && <Logo />}
-                </div>
-              </div>
-              <button
+              <AnimatePresence mode='wait'>
+                {!isCollapsed && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className='absolute inset-0 flex items-center justify-center'
+                  >
+                    <div className='w-[calc(100%-4rem)] flex justify-center'>
+                      <Logo />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <motion.button
                 onClick={handleToggle}
-                className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100/50 transition-colors duration-200 z-10 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700/50 ${
-                  isCollapsed ? 'left-1/2 -translate-x-1/2' : 'right-2'
-                }`}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100/70 transition-colors duration-200 z-10 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700/70 ${isCollapsed ? 'left-1/2 -translate-x-1/2' : 'right-2'
+                  }`}
               >
                 <Menu className='h-4 w-4' />
-              </button>
+              </motion.button>
             </div>
 
-            {/* 首页和搜索导航 */}
-            <nav className='px-2 mt-4 space-y-1'>
-              <Link
+            {/* 所有导航项放在同一个容器中，确保 layoutId 动画正常工作 */}
+            <nav className='flex-1 overflow-y-auto px-2 mt-4 space-y-1'>
+              <NavItem
                 href='/'
-                onClick={() => setActive('/')}
-                data-active={active === '/'}
-                className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-green-600 data-[active=true]:bg-green-500/20 data-[active=true]:text-green-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-green-400 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400 ${
-                  isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'
-                } gap-3 justify-start`}
-              >
-                <div className='w-4 h-4 flex items-center justify-center'>
-                  <Home className='h-4 w-4 text-gray-500 group-hover:text-green-600 data-[active=true]:text-green-700 dark:text-gray-400 dark:group-hover:text-green-400 dark:data-[active=true]:text-green-400' />
-                </div>
-                {!isCollapsed && (
-                  <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
-                    首页
-                  </span>
-                )}
-              </Link>
-              <Link
+                icon={Home}
+                label='首页'
+                isActive={active === '/'}
+                isCollapsed={isCollapsed}
+              />
+              <NavItem
                 href='/search'
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleSearchClick();
-                  setActive('/search');
-                }}
-                data-active={active === '/search'}
-                className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-green-600 data-[active=true]:bg-green-500/20 data-[active=true]:text-green-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-green-400 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400 ${
-                  isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'
-                } gap-3 justify-start`}
-              >
-                <div className='w-4 h-4 flex items-center justify-center'>
-                  <Search className='h-4 w-4 text-gray-500 group-hover:text-green-600 data-[active=true]:text-green-700 dark:text-gray-400 dark:group-hover:text-green-400 dark:data-[active=true]:text-green-400' />
-                </div>
-                {!isCollapsed && (
-                  <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
-                    搜索
-                  </span>
-                )}
-              </Link>
-            </nav>
+                icon={Search}
+                label='搜索'
+                isActive={active === '/search'}
+                isCollapsed={isCollapsed}
+              />
 
-            {/* 菜单项 */}
-            <div className='flex-1 overflow-y-auto px-2 pt-4'>
-              <div className='space-y-1'>
-                {menuItems.map((item) => {
+              {/* 分隔区域 - 分类 */}
+              <div className='pt-3 space-y-1'>
+                {menuItems.map((item, index) => {
                   // 检查当前路径是否匹配这个菜单项
                   const typeMatch = item.href.match(/type=([^&]+)/)?.[1];
 
@@ -251,34 +314,46 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                       decodedActive.includes(`type=${typeMatch}`));
                   const Icon = item.icon;
                   return (
-                    <Link
+                    <motion.div
                       key={item.label}
-                      href={item.href}
-                      onClick={() => setActive(item.href)}
-                      data-active={isActive}
-                      className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-sm text-gray-700 hover:bg-gray-100/30 hover:text-green-600 data-[active=true]:bg-green-500/20 data-[active=true]:text-green-700 transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-green-400 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400 ${
-                        isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'
-                      } gap-3 justify-start`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
                     >
-                      <div className='w-4 h-4 flex items-center justify-center'>
-                        <Icon className='h-4 w-4 text-gray-500 group-hover:text-green-600 data-[active=true]:text-green-700 dark:text-gray-400 dark:group-hover:text-green-400 dark:data-[active=true]:text-green-400' />
-                      </div>
-                      {!isCollapsed && (
-                        <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
-                          {item.label}
-                        </span>
-                      )}
-                    </Link>
+                      <NavItem
+                        href={item.href}
+                        icon={Icon}
+                        label={item.label}
+                        isActive={isActive}
+                        isCollapsed={isCollapsed}
+                      />
+                    </motion.div>
                   );
                 })}
               </div>
+
+              {/* 分隔区域 - 收藏夹 */}
+              <div className='pt-3'>
+                <NavItem
+                  href='/favorites'
+                  icon={Heart}
+                  label='收藏夹'
+                  isActive={active === '/favorites'}
+                  isCollapsed={isCollapsed}
+                />
+              </div>
+            </nav>
+
+            {/* 底部固定区域 - 主题切换和用户菜单 */}
+            <div className={`px-2 py-4 border-t border-gray-200/30 dark:border-gray-700/30 ${isCollapsed ? 'flex flex-col items-center gap-2' : 'flex items-center justify-between'}`}>
+              <ThemeToggle />
+              <UserMenu />
             </div>
           </div>
         </aside>
         <div
-          className={`transition-all duration-300 sidebar-offset ${
-            isCollapsed ? 'w-16' : 'w-64'
-          }`}
+          className={`transition-all duration-300 sidebar-offset ${isCollapsed ? 'w-16' : 'w-64'
+            }`}
         ></div>
       </div>
     </SidebarContext.Provider>
