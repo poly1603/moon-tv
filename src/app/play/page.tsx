@@ -6,11 +6,10 @@ import Artplayer from 'artplayer';
 import { AnimatePresence, motion } from 'framer-motion';
 import Hls from 'hls.js';
 import { Heart } from 'lucide-react';
+import { ArrowLeft, ChevronUp } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-
-import { ArrowLeft, ChevronUp } from 'lucide-react';
 
 import {
   deleteFavorite,
@@ -28,7 +27,6 @@ import {
 import { SearchResult } from '@/lib/types';
 import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 
-import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
 
 // 扩展 HTMLVideoElement 类型以支持 hls 属性

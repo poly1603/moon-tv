@@ -117,3 +117,61 @@ export interface SkipConfig {
   intro_time: number; // 片头时间（秒）
   outro_time: number; // 片尾时间（秒）
 }
+
+// TMDB 数据结构
+export interface TMDBMovie {
+  id: number;
+  title: string;
+  original_title: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string;
+  release_date: string;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+  genre_ids: number[];
+  original_language: string;
+  adult: boolean;
+}
+
+export interface TMDBTVShow {
+  id: number;
+  name: string;
+  original_name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string;
+  first_air_date: string;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+  genre_ids: number[];
+  original_language: string;
+  origin_country: string[];
+}
+
+export interface TMDBDiscoverResponse<T> {
+  page: number;
+  results: T[];
+  total_pages: number;
+  total_results: number;
+}
+
+// 统一的 TMDB 列表项（转换后的格式，与 DoubanItem 兼容）
+export interface TMDBItem {
+  id: string;
+  title: string;
+  poster: string;
+  rate: string;
+  year: string;
+  media_type: 'movie' | 'tv';
+}
+
+export interface TMDBResult {
+  code: number;
+  message: string;
+  list: TMDBItem[];
+  total_pages?: number;
+  total_results?: number;
+}

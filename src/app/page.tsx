@@ -8,7 +8,8 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 
 import { getDoubanCategories } from '@/lib/douban.client';
-import { DoubanItem } from '@/lib/types';
+import { getTMDBDiscover } from '@/lib/tmdb.client';
+import { DoubanItem, TMDBItem } from '@/lib/types';
 
 import ContinueWatching from '@/components/ContinueWatching';
 import PageLayout from '@/components/PageLayout';
@@ -16,11 +17,14 @@ import ScrollableRow from '@/components/ScrollableRow';
 import { useSite } from '@/components/SiteProvider';
 import VideoCard from '@/components/VideoCard';
 
+// 统一的数据类型
+type VideoItem = (TMDBItem | DoubanItem) & { id: string | number };
+
 function HomeClient() {
-  const [hotMovies, setHotMovies] = useState<DoubanItem[]>([]);
-  const [hotTvShows, setHotTvShows] = useState<DoubanItem[]>([]);
-  const [hotVarietyShows, setHotVarietyShows] = useState<DoubanItem[]>([]);
+  const [hotMovies, setHotMovies] = useState<VideoItem[]>([]);
+  const [hotTvShows, setHotTvShows] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataSource, setDataSource] = useState<'tmdb' | 'douban'>('tmdb');
   const { announcement } = useSite();
 
   const [showAnnouncement, setShowAnnouncement] = useState(false);
@@ -37,11 +41,33 @@ function HomeClient() {
     }
   }, [announcement]);
 
+  // 读取数据源设置
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dataSource');
+      if (saved === 'douban' || saved === 'tmdb') {
+        setDataSource(saved);
+      }
+
+      // 监听数据源变更事件
+      const handleDataSourceChange = (e: Event) => {
+        const customEvent = e as CustomEvent<'tmdb' | 'douban'>;
+        setDataSource(customEvent.detail);
+      };
+      window.addEventListener('dataSourceChanged', handleDataSourceChange);
+      return () => {
+        window.removeEventListener('dataSourceChanged', handleDataSourceChange);
+      };
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       try {
         setLoading(true);
+        setHotMovies([]);
+        setHotTvShows([]);
 
         const withTimeout = <T,>(promise: Promise<T>, ms: number) => {
           return Promise.race([
@@ -53,65 +79,100 @@ function HomeClient() {
         };
 
         const maxWaitMs = process.env.NODE_ENV === 'development' ? 4000 : 8000;
-        const pageLimit = 12;
 
-        const tasks = [
-          {
-            promise: withTimeout(
-              getDoubanCategories({
-                kind: 'movie',
-                category: '热门',
-                type: '全部',
-                pageLimit,
-              }),
-              maxWaitMs
-            ),
-            setter: setHotMovies,
-          },
-          {
-            promise: withTimeout(
-              getDoubanCategories({
-                kind: 'tv',
-                category: 'tv',
-                type: 'tv',
-                pageLimit,
-              }),
-              maxWaitMs
-            ),
-            setter: setHotTvShows,
-          },
-          {
-            promise: withTimeout(
-              getDoubanCategories({
-                kind: 'tv',
-                category: 'show',
-                type: 'show',
-                pageLimit,
-              }),
-              maxWaitMs
-            ),
-            setter: setHotVarietyShows,
-          },
-        ];
+        if (dataSource === 'tmdb') {
+          // TMDB 数据源
+          const tasks = [
+            {
+              promise: withTimeout(
+                getTMDBDiscover({
+                  type: 'movie',
+                  category: 'popular',
+                  page: 1,
+                }),
+                maxWaitMs
+              ),
+              setter: setHotMovies,
+            },
+            {
+              promise: withTimeout(
+                getTMDBDiscover({
+                  type: 'tv',
+                  category: 'popular',
+                  page: 1,
+                }),
+                maxWaitMs
+              ),
+              setter: setHotTvShows,
+            },
+          ];
 
-        tasks.forEach(({ promise, setter }) => {
-          promise
-            .then((data) => {
-              if (cancelled) return;
-              if (data && (data as any).code === 200) {
-                setter((data as any).list || []);
-              }
-            })
-            .catch(() => {
-              // 忽略单路失败
-            });
-        });
+          tasks.forEach(({ promise, setter }) => {
+            promise
+              .then((data) => {
+                if (cancelled) return;
+                if (data && (data as any).code === 200) {
+                  setter((data as any).list || []);
+                }
+              })
+              .catch(() => {
+                // 忽略单路失败
+              });
+          });
 
-        const allSettled = Promise.allSettled(tasks.map((t) => t.promise));
-        const maxWait = new Promise((resolve) => setTimeout(resolve, maxWaitMs));
-        await Promise.race([allSettled, maxWait]);
+          const allSettled = Promise.allSettled(tasks.map((t) => t.promise));
+          const maxWait = new Promise((resolve) => setTimeout(resolve, maxWaitMs));
+          await Promise.race([allSettled, maxWait]);
+        } else {
+          // 豆瓣数据源
+          const tasks = [
+            {
+              promise: withTimeout(
+                getDoubanCategories({
+                  kind: 'movie',
+                  category: '热门',
+                  type: '全部',
+                  pageLimit: 20,
+                  pageStart: 0,
+                }),
+                maxWaitMs
+              ),
+              setter: setHotMovies,
+            },
+            {
+              promise: withTimeout(
+                getDoubanCategories({
+                  kind: 'tv',
+                  category: '热门',
+                  type: '全部',
+                  pageLimit: 20,
+                  pageStart: 0,
+                }),
+                maxWaitMs
+              ),
+              setter: setHotTvShows,
+            },
+          ];
+
+          tasks.forEach(({ promise, setter }) => {
+            promise
+              .then((data) => {
+                if (cancelled) return;
+                if (data && (data as any).code === 200) {
+                  setter((data as any).list || []);
+                }
+              })
+              .catch(() => {
+                // 忽略单路失败
+              });
+          });
+
+          const allSettled = Promise.allSettled(tasks.map((t) => t.promise));
+          const maxWait = new Promise((resolve) => setTimeout(resolve, maxWaitMs));
+          await Promise.race([allSettled, maxWait]);
+        }
       } catch (error) {
-        console.error('获取豆瓣数据失败:', error);
+        console.error('获取数据失败:', error);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -124,7 +185,7 @@ function HomeClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dataSource]);
 
   const handleCloseAnnouncement = (announcement: string) => {
     setShowAnnouncement(false);
@@ -144,7 +205,7 @@ function HomeClient() {
               热门电影
             </h2>
             <Link
-              href='/douban?type=movie'
+              href={dataSource === 'tmdb' ? '/tmdb?type=movie' : '/douban?type=movie'}
               className='flex items-center text-sm text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 transition-colors'
             >
               查看更多
@@ -167,17 +228,18 @@ function HomeClient() {
               : hotMovies.length > 0
                 ? hotMovies.map((movie, index) => (
                   <motion.div
-                    key={index}
+                    key={`${dataSource}-movie-${movie.id}-${index}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: index * 0.05 }}
                     className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
                   >
                     <VideoCard
-                      from='douban'
+                      from={dataSource}
                       title={movie.title}
                       poster={movie.poster}
-                      douban_id={movie.id}
+                      douban_id={dataSource === 'douban' ? String(movie.id) : undefined}
+                      tmdb_id={dataSource === 'tmdb' ? Number(movie.id) : undefined}
                       rate={movie.rate}
                       year={movie.year}
                       type='movie'
@@ -199,7 +261,7 @@ function HomeClient() {
               热门剧集
             </h2>
             <Link
-              href='/douban?type=tv'
+              href={dataSource === 'tmdb' ? '/tmdb?type=tv' : '/douban?type=tv'}
               className='flex items-center text-sm text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 transition-colors'
             >
               查看更多
@@ -222,73 +284,21 @@ function HomeClient() {
               : hotTvShows.length > 0
                 ? hotTvShows.map((show, index) => (
                   <motion.div
-                    key={index}
+                    key={`${dataSource}-tv-${show.id}-${index}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: index * 0.05 }}
                     className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
                   >
                     <VideoCard
-                      from='douban'
+                      from={dataSource}
                       title={show.title}
                       poster={show.poster}
-                      douban_id={show.id}
+                      douban_id={dataSource === 'douban' ? String(show.id) : undefined}
+                      tmdb_id={dataSource === 'tmdb' ? Number(show.id) : undefined}
                       rate={show.rate}
                       year={show.year}
-                    />
-                  </motion.div>
-                ))
-                : (
-                  <div className='px-4 text-sm text-gray-500 dark:text-gray-400'>
-                    暂无数据
-                  </div>
-                )}
-          </ScrollableRow>
-        </section>
-
-        {/* 热门综艺 */}
-        <section className='mb-8'>
-          <div className='mb-4 flex items-center justify-between'>
-            <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-              热门综艺
-            </h2>
-            <Link
-              href='/douban?type=show'
-              className='flex items-center text-sm text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 transition-colors'
-            >
-              查看更多
-              <ChevronRight className='w-4 h-4 ml-1' />
-            </Link>
-          </div>
-          <ScrollableRow>
-            {loading && hotVarietyShows.length === 0
-              ? Array.from({ length: 8 }).map((_, index) => (
-                <div
-                  key={index}
-                  className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
-                >
-                  <div className='relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-gray-200 animate-pulse dark:bg-gray-800'>
-                    <div className='absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800'></div>
-                  </div>
-                  <div className='mt-3 h-4 bg-gray-200 rounded-lg animate-pulse dark:bg-gray-800'></div>
-                </div>
-              ))
-              : hotVarietyShows.length > 0
-                ? hotVarietyShows.map((show, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
-                  >
-                    <VideoCard
-                      from='douban'
-                      title={show.title}
-                      poster={show.poster}
-                      douban_id={show.id}
-                      rate={show.rate}
-                      year={show.year}
+                      type='tv'
                     />
                   </motion.div>
                 ))

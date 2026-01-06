@@ -3,7 +3,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -41,6 +41,7 @@ const staggerItem = {
 
 function DoubanPageClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [doubanData, setDoubanData] = useState<DoubanItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -53,21 +54,46 @@ function DoubanPageClient() {
 
   const type = searchParams.get('type') || 'movie';
 
+  // 从 URL 读取筛选参数
+  const urlPrimary = searchParams.get('primary');
+  const urlSecondary = searchParams.get('secondary');
+
   // 获取 runtimeConfig 中的自定义分类数据
   const [customCategories, setCustomCategories] = useState<
     Array<{ name: string; type: 'movie' | 'tv'; query: string }>
   >([]);
 
-  // 选择器状态 - 完全独立，不依赖URL参数
-  const [primarySelection, setPrimarySelection] = useState<string>(() => {
-    return type === 'movie' ? '热门' : '';
-  });
-  const [secondarySelection, setSecondarySelection] = useState<string>(() => {
-    if (type === 'movie') return '全部';
-    if (type === 'tv') return 'tv';
-    if (type === 'show') return 'show';
+  // 获取默认值的函数
+  const getDefaultPrimary = useCallback((currentType: string) => {
+    if (urlPrimary) return urlPrimary;
+    return currentType === 'movie' ? '热门' : '';
+  }, [urlPrimary]);
+
+  const getDefaultSecondary = useCallback((currentType: string) => {
+    if (urlSecondary) return urlSecondary;
+    if (currentType === 'movie') return '全部';
+    if (currentType === 'tv') return 'tv';
+    if (currentType === 'anime') return 'tv_animation';
+    if (currentType === 'show') return 'show';
     return '全部';
-  });
+  }, [urlSecondary]);
+
+  // 选择器状态 - 从 URL 参数初始化
+  const [primarySelection, setPrimarySelection] = useState<string>(() => getDefaultPrimary(type));
+  const [secondarySelection, setSecondarySelection] = useState<string>(() => getDefaultSecondary(type));
+
+  // 更新 URL 参数的函数
+  const updateURLParams = useCallback((primary: string, secondary: string) => {
+    const params = new URLSearchParams();
+    params.set('type', type);
+    if (primary) {
+      params.set('primary', primary);
+    }
+    if (secondary) {
+      params.set('secondary', secondary);
+    }
+    router.replace(`/douban?${params.toString()}`, { scroll: false });
+  }, [type, router]);
 
   // 获取自定义分类数据
   useEffect(() => {
@@ -77,24 +103,22 @@ function DoubanPageClient() {
     }
   }, []);
 
-  // 初始化时标记选择器为准备好状态
-  useEffect(() => {
-    // 短暂延迟确保初始状态设置完成
-    const timer = setTimeout(() => {
-      setSelectorsReady(true);
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, []); // 只在组件挂载时执行一次
-
-  // type变化时立即重置selectorsReady（最高优先级）
+  // type变化时立即重置selectorsReady
   useEffect(() => {
     setSelectorsReady(false);
-    setLoading(true); // 立即显示loading状态
+    setLoading(true);
   }, [type]);
 
-  // 当type变化时重置选择器状态
+  // 当type变化时重置选择器状态（只在没有 URL 参数时重置）
   useEffect(() => {
+    // 如果 URL 有参数，使用 URL 参数
+    if (urlPrimary || urlSecondary) {
+      setPrimarySelection(urlPrimary || '');
+      setSecondarySelection(urlSecondary || '');
+      setSelectorsReady(true);
+      return;
+    }
+
     if (type === 'custom' && customCategories.length > 0) {
       // 自定义分类模式：优先选择 movie，如果没有 movie 则选择 tv
       const types = Array.from(
@@ -126,6 +150,10 @@ function DoubanPageClient() {
       } else if (type === 'tv') {
         setPrimarySelection('');
         setSecondarySelection('tv');
+      } else if (type === 'anime') {
+        // 动漫类型，使用 tv_animation
+        setPrimarySelection('');
+        setSecondarySelection('tv_animation');
       } else if (type === 'show') {
         setPrimarySelection('');
         setSecondarySelection('show');
@@ -135,13 +163,9 @@ function DoubanPageClient() {
       }
     }
 
-    // 使用短暂延迟确保状态更新完成后标记选择器准备好
-    const timer = setTimeout(() => {
-      setSelectorsReady(true);
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, [type, customCategories]);
+    // 立即标记选择器准备好
+    setSelectorsReady(true);
+  }, [type, customCategories, urlPrimary, urlSecondary]);
 
   // 生成骨架屏数据
   const skeletonData = Array.from({ length: 25 }, (_, index) => index);
@@ -149,11 +173,13 @@ function DoubanPageClient() {
   // 生成API请求参数的辅助函数
   const getRequestParams = useCallback(
     (pageStart: number) => {
-      // 当type为tv或show时，kind统一为'tv'，category使用type本身
-      if (type === 'tv' || type === 'show') {
+      // 当type为tv、anime或show时，kind统一为'tv'
+      if (type === 'tv' || type === 'anime' || type === 'show') {
+        // anime 类型使用 'tv' 作为 category
+        const category = type === 'anime' ? 'tv' : type;
         return {
           kind: 'tv' as const,
-          category: type,
+          category: category,
           type: secondarySelection,
           pageLimit: 25,
           pageStart,
@@ -235,10 +261,8 @@ function DoubanPageClient() {
       clearTimeout(debounceTimeoutRef.current);
     }
 
-    // 使用防抖机制加载数据，避免连续状态更新触发多次请求
-    debounceTimeoutRef.current = setTimeout(() => {
-      loadInitialData();
-    }, 100); // 100ms 防抖延迟
+    // 直接加载数据
+    loadInitialData();
 
     // 清理函数
     return () => {
@@ -340,7 +364,7 @@ function DoubanPageClient() {
     };
   }, [hasMore, isLoadingMore, loading]);
 
-  // 处理选择器变化
+  // 处理选择器变化 - 更新 URL 参数
   const handlePrimaryChange = useCallback(
     (value: string) => {
       // 只有当值真正改变时才设置loading状态
@@ -353,18 +377,16 @@ function DoubanPageClient() {
             (cat) => cat.type === value
           );
           if (firstCategory) {
-            // 批量更新状态，避免多次触发数据加载
-            setPrimarySelection(value);
-            setSecondarySelection(firstCategory.query);
+            updateURLParams(value, firstCategory.query);
           } else {
-            setPrimarySelection(value);
+            updateURLParams(value, secondarySelection);
           }
         } else {
-          setPrimarySelection(value);
+          updateURLParams(value, secondarySelection);
         }
       }
     },
-    [primarySelection, type, customCategories]
+    [primarySelection, secondarySelection, type, customCategories, updateURLParams]
   );
 
   const handleSecondaryChange = useCallback(
@@ -372,21 +394,26 @@ function DoubanPageClient() {
       // 只有当值真正改变时才设置loading状态
       if (value !== secondarySelection) {
         setLoading(true);
-        setSecondarySelection(value);
+        updateURLParams(primarySelection, value);
       }
     },
-    [secondarySelection]
+    [primarySelection, secondarySelection, updateURLParams]
   );
 
   const getPageTitle = () => {
     // 根据 type 生成标题
-    return type === 'movie'
-      ? '电影'
-      : type === 'tv'
-        ? '电视剧'
-        : type === 'show'
-          ? '综艺'
-          : '自定义';
+    switch (type) {
+      case 'movie':
+        return '电影';
+      case 'tv':
+        return '电视剧';
+      case 'anime':
+        return '动漫';
+      case 'show':
+        return '综艺';
+      default:
+        return '自定义';
+    }
   };
 
   const getActivePath = () => {
@@ -412,29 +439,32 @@ function DoubanPageClient() {
         </div>
 
         {/* 选择器组件 - 吸顶效果 */}
-        <div className='sticky top-0 z-30 -mx-4 sm:-mx-10 px-4 sm:px-10 py-3 bg-gradient-to-b from-white/95 via-white/90 to-white/0 dark:from-gray-900/95 dark:via-gray-900/90 dark:to-gray-900/0 backdrop-blur-md'>
-          {type !== 'custom' ? (
-            <div className='bg-white/80 dark:bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-200/40 dark:border-gray-700/40 shadow-sm backdrop-blur-sm'>
-              <DoubanSelector
-                type={type as 'movie' | 'tv' | 'show'}
-                primarySelection={primarySelection}
-                secondarySelection={secondarySelection}
-                onPrimaryChange={handlePrimaryChange}
-                onSecondaryChange={handleSecondaryChange}
-              />
-            </div>
-          ) : (
-            <div className='bg-white/80 dark:bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-200/40 dark:border-gray-700/40 shadow-sm backdrop-blur-sm'>
-              <DoubanCustomSelector
-                customCategories={customCategories}
-                primarySelection={primarySelection}
-                secondarySelection={secondarySelection}
-                onPrimaryChange={handlePrimaryChange}
-                onSecondaryChange={handleSecondaryChange}
-              />
-            </div>
-          )}
-        </div>
+        {/* anime 类型不显示选择器，因为只有一个分类 */}
+        {type !== 'anime' && (
+          <div className='sticky top-0 z-30 -mx-4 sm:-mx-10 px-4 sm:px-10 py-3 bg-gradient-to-b from-white/95 via-white/90 to-white/0 dark:from-gray-900/95 dark:via-gray-900/90 dark:to-gray-900/0 backdrop-blur-md'>
+            {type !== 'custom' ? (
+              <div className='bg-white/80 dark:bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-200/40 dark:border-gray-700/40 shadow-sm backdrop-blur-sm'>
+                <DoubanSelector
+                  type={type as 'movie' | 'tv' | 'show'}
+                  primarySelection={primarySelection}
+                  secondarySelection={secondarySelection}
+                  onPrimaryChange={handlePrimaryChange}
+                  onSecondaryChange={handleSecondaryChange}
+                />
+              </div>
+            ) : (
+              <div className='bg-white/80 dark:bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-200/40 dark:border-gray-700/40 shadow-sm backdrop-blur-sm'>
+                <DoubanCustomSelector
+                  customCategories={customCategories}
+                  primarySelection={primarySelection}
+                  secondarySelection={secondarySelection}
+                  onPrimaryChange={handlePrimaryChange}
+                  onSecondaryChange={handleSecondaryChange}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 内容展示区域 - 与选择器对齐 */}
         <div className='mt-6 overflow-visible'>

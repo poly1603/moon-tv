@@ -3,10 +3,27 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Clover, Film, Home, Search, Star, Tv } from 'lucide-react';
+import {
+  type LucideIcon,
+  Clapperboard,
+  Film,
+  Home,
+  Mic2,
+  Search,
+  Tv,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+
+import { useDataSourceConfig } from '@/hooks/useDataSourceConfig';
+
+// 图标映射
+const iconMap: Record<string, LucideIcon> = {
+  Film,
+  Tv,
+  Clapperboard,
+  Mic2,
+};
 
 interface MobileBottomNavProps {
   /**
@@ -21,42 +38,25 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   // 当前激活路径：优先使用传入的 activePath，否则回退到浏览器地址
   const currentActive = activePath ?? pathname;
 
-  const [navItems, setNavItems] = useState([
+  // 使用 hook 获取数据源配置
+  const { dataSource, menuItems: configMenuItems } = useDataSourceConfig();
+
+  // 将配置中的菜单项转换为带图标组件的格式
+  const dataSourceMenuItems = configMenuItems.map(item => ({
+    icon: iconMap[item.icon] || Film,
+    label: item.label,
+    href: `/${dataSource}?type=${item.type}`,
+  }));
+
+  const navItems = [
     { icon: Home, label: '首页', href: '/' },
     { icon: Search, label: '搜索', href: '/search' },
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
-  ]);
-
-  useEffect(() => {
-    const runtimeConfig = (window as any).RUNTIME_CONFIG;
-    if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
-      setNavItems((prevItems) => [
-        ...prevItems,
-        {
-          icon: Star,
-          label: '自定义',
-          href: '/douban?type=custom',
-        },
-      ]);
-    }
-  }, []);
+    ...dataSourceMenuItems,
+  ];
 
   const isActive = (href: string) => {
     const typeMatch = href.match(/type=([^&]+)/)?.[1];
+    const pathMatch = href.match(/^\/([^?]+)/)?.[1];
 
     // 解码URL以进行正确的比较
     const decodedActive = decodeURIComponent(currentActive);
@@ -64,7 +64,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
 
     return (
       decodedActive === decodedItemHref ||
-      (decodedActive.startsWith('/douban') &&
+      (decodedActive.startsWith(`/${pathMatch}`) &&
         decodedActive.includes(`type=${typeMatch}`))
     );
   };
@@ -86,7 +86,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
             <motion.li
               key={item.href}
               className='flex-shrink-0'
-              style={{ width: '20vw', minWidth: '20vw' }}
+              style={{ width: `${100 / navItems.length}vw`, minWidth: `${100 / navItems.length}vw` }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}

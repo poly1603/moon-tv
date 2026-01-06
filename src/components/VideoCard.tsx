@@ -30,10 +30,11 @@ interface VideoCardProps {
   source_name?: string;
   progress?: number;
   year?: string;
-  from: 'playrecord' | 'favorite' | 'search' | 'douban';
+  from: 'playrecord' | 'favorite' | 'search' | 'douban' | 'tmdb';
   initialFavorited?: boolean;
   currentEpisode?: number;
   douban_id?: string;
+  tmdb_id?: string;
   onDelete?: () => void;
   rate?: string;
   items?: SearchResult[];
@@ -54,6 +55,7 @@ export default function VideoCard({
   initialFavorited,
   currentEpisode,
   douban_id,
+  tmdb_id,
   onDelete,
   rate,
   items,
@@ -124,6 +126,7 @@ export default function VideoCard({
 
   const shouldManageFavorite =
     from !== 'douban' &&
+    from !== 'tmdb' &&
     Boolean(actualSource) &&
     Boolean(actualId) &&
     !(from === 'search' && isAggregate);
@@ -163,7 +166,7 @@ export default function VideoCard({
     async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (from === 'douban' || !actualSource || !actualId) return;
+      if (from === 'douban' || from === 'tmdb' || !actualSource || !actualId) return;
       try {
         if (favorited) {
           // 如果已收藏，删除收藏
@@ -214,7 +217,7 @@ export default function VideoCard({
   );
 
   const handleClick = useCallback(() => {
-    if (from === 'douban') {
+    if (from === 'douban' || from === 'tmdb') {
       router.push(
         `/play?title=${encodeURIComponent(actualTitle.trim())}${actualYear ? `&year=${actualYear}` : ''
         }${actualSearchType ? `&stype=${actualSearchType}` : ''}`
@@ -276,6 +279,15 @@ export default function VideoCard({
         showHeart: false,
         showCheckCircle: false,
         showDoubanLink: true,
+        showRating: !!rate,
+      },
+      tmdb: {
+        showSourceName: false,
+        showProgress: false,
+        showPlayButton: true,
+        showHeart: false,
+        showCheckCircle: false,
+        showDoubanLink: false,
         showRating: !!rate,
       },
     };

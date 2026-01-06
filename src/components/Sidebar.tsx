@@ -3,7 +3,17 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Clover, Film, Heart, Home, Menu, Search, Star, Tv } from 'lucide-react';
+import {
+  type LucideIcon,
+  Clapperboard,
+  Film,
+  Heart,
+  Home,
+  Menu,
+  Mic2,
+  Search,
+  Tv,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -14,6 +24,16 @@ import {
   useLayoutEffect,
   useState,
 } from 'react';
+
+import { useDataSourceConfig } from '@/hooks/useDataSourceConfig';
+
+// 图标映射
+const iconMap: Record<string, LucideIcon> = {
+  Film,
+  Tv,
+  Clapperboard,
+  Mic2,
+};
 
 import { useSite } from './SiteProvider';
 import { ThemeToggle } from './ThemeToggle';
@@ -207,37 +227,15 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     isCollapsed,
   };
 
-  const [menuItems, setMenuItems] = useState([
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
-  ]);
+  // 使用 hook 获取数据源配置
+  const { dataSource, menuItems: configMenuItems } = useDataSourceConfig();
 
-  useEffect(() => {
-    const runtimeConfig = (window as any).RUNTIME_CONFIG;
-    if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
-      setMenuItems((prevItems) => [
-        ...prevItems,
-        {
-          icon: Star,
-          label: '自定义',
-          href: '/douban?type=custom',
-        },
-      ]);
-    }
-  }, []);
+  // 将配置中的菜单项转换为带图标组件的格式
+  const menuItems = configMenuItems.map(item => ({
+    icon: iconMap[item.icon] || Film,
+    label: item.label,
+    href: `/${dataSource}?type=${item.type}`,
+  }));
 
   return (
     <SidebarContext.Provider value={contextValue}>
@@ -300,17 +298,20 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
 
               {/* 分隔区域 - 分类 */}
               <div className='pt-3 space-y-1'>
-                {menuItems.map((item, index) => {
+              {menuItems.map((item, index) => {
                   // 检查当前路径是否匹配这个菜单项
                   const typeMatch = item.href.match(/type=([^&]+)/)?.[1];
+                  const pathMatch = item.href.match(/^\/([^?]+)/)?.[1] || '';
 
                   // 解码URL以进行正确的比较
                   const decodedActive = decodeURIComponent(active);
                   const decodedItemHref = decodeURIComponent(item.href);
 
+                  // 匹配逻辑：完全匹配 或 路径+type参数匹配
                   const isActive =
                     decodedActive === decodedItemHref ||
-                    (decodedActive.startsWith('/douban') &&
+                    (pathMatch && typeMatch && 
+                      decodedActive.startsWith(`/${pathMatch}`) &&
                       decodedActive.includes(`type=${typeMatch}`));
                   const Icon = item.icon;
                   return (
